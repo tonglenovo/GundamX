@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gundam TCG Post Generator</title>
+  <style>
+    :root{--bg:#0f172a;--card:#111827;--text:#e5e7eb;--muted:#94a3b8;--accent:#22d3ee}
+    *{box-sizing:border-box} body{margin:0;background:linear-gradient(160deg,#0b1022,#0f172a 40%,#0b1022);color:var(--text);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial}
+    .wrap{max-width:900px;margin:auto;padding:16px}
+    h1{font-size:22px;margin:10px 0 16px}
+    .grid{display:grid;gap:12px}
+    @media(min-width:760px){.grid-cols{grid-template-columns:1fr 1fr}}
+    .card{background:var(--card);border:1px solid #1f2937;border-radius:16px;padding:14px;box-shadow:0 8px 28px rgba(0,0,0,.35)}
+    label{display:block;font-size:12px;color:var(--muted);margin:4px 0}
+    input,select,textarea,button{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #243042;background:#0b1220;color:var(--text)}
+    input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);border-color:transparent}
+    .row{display:grid;grid-template-columns:1fr 1fr .9fr .9fr;gap:8px}
+    .row + .row{margin-top:8px}
+    .pill{display:inline-flex;gap:8px;flex-wrap:wrap}
+    .btn{cursor:pointer;font-weight:600}
+    .btn.primary{background:linear-gradient(90deg,#06b6d4,#3b82f6);border:0}
+    .btn.ghost{background:transparent;border:1px dashed #334155}
+    .muted{color:var(--muted)}
+    .preview{white-space:pre-wrap;background:#0a0f1b;border:1px dashed #1f2a44;border-radius:14px;padding:12px}
+    .hint{font-size:12px;color:#9aa7bd}
+    .flex{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .right{margin-left:auto}
+    .badge{font-size:12px;padding:3px 8px;border-radius:999px;background:#0d1b2a;border:1px solid #1f3756;color:#9bc2ff}
+    #charCount{margin-top:6px;font-size:12px;color:#9aa7bd;text-align:right}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Gundam TCG Post Generator <span class="badge">mobile‑friendly</span></h1>
+
+    <div class="grid grid-cols">
+      <div class="card">
+        <div class="grid" style="grid-template-columns: 1fr 1fr; gap:10px;">
+          <div>
+            <label>Date</label>
+            <input id="date" type="date" />
+          </div>
+          <div>
+            <label>Format (e.g., SB, BO3)</label>
+            <input id="format" placeholder="SB" />
+          </div>
+          <div>
+            <label>Card shop name</label>
+            <input id="shop" placeholder="Inferno Gaming" />
+          </div>
+          <div>
+            <label>Score (auto)</label>
+            <input id="score" placeholder="3-1" readonly />
+          </div>
+          <div>
+            <label>Ranking</label>
+            <input id="ranking" placeholder="3rd" />
+          </div>
+          <div>
+            <label>Deck used (e.g., GR Brench)</label>
+            <input id="deck" placeholder="GR Brench" />
+          </div>
+          <div style="grid-column: span 2">
+            <label>Hashtags (optional)</label>
+            <input id="tags" value="#GCG #GUNDAMCARDGAME #ガンダンカード #ガンダンカードゲーム" />
+          </div>
+        </div>
+
+        <div class="pill" style="margin-top:8px">
+          <label style="margin:0" class="flex"><input id="decorateColors" type="checkbox" checked style="width:auto;margin-right:8px">Decorate colors (B,G,R,W → 🟦🟩🟥⬜)</label>
+          <label style="margin:0" class="flex"><input id="emojiResult" type="checkbox" checked style="width:auto;margin-right:8px">Use ✅/❌ for Win/Lose</label>
+          <span class="right hint">Tip: leave Round 4 blank if N/A</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="flex" style="justify-content:space-between;margin-bottom:6px">
+          <strong>Rounds</strong>
+          <span class="hint">Opponent Colors · Archetype · Going · Result</span>
+        </div>
+
+        <div id="rounds" class="grid" style="gap:10px"></div>
+      </div>
+
+      <div class="card">
+        <div class="flex" style="margin-bottom:8px">
+          <button id="genBtn" class="btn primary" type="button">Generate</button>
+          <button id="copyBtn" class="btn ghost right" type="button">Copy to clipboard</button>
+        </div>
+        <div id="preview" class="preview">Your formatted post will appear here…</div>
+        <div id="charCount">Characters: 0</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function initDate(){
+      const d=new Date();
+      const pad=n=>String(n).padStart(2,'0');
+      const val=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+      document.getElementById('date').value=val;
+    })();
+
+    const roundsEl = document.getElementById('rounds');
+    const makeRow = (n)=>{
+      const wrap = document.createElement('div');
+      wrap.className='row';
+      wrap.innerHTML = `
+        <div>
+          <label>R${n} Opp Colors</label>
+          <input id="r${n}colors" placeholder="RW" />
+        </div>
+        <div>
+          <label>R${n} Archetype</label>
+          <input id="r${n}arch" placeholder="Seed" />
+        </div>
+        <div>
+          <label>Going</label>
+          <select id="r${n}going">
+            <option value="">—</option>
+            <option value="先">先</option>
+            <option value="後">後</option>
+          </select>
+        </div>
+        <div>
+          <label>Result</label>
+          <select id="r${n}res">
+            <option value="">—</option>
+            <option>Win</option>
+            <option>Lose</option>
+          </select>
+        </div>`;
+      return wrap;
+    };
+    [1,2,3,4].forEach(n=>roundsEl.appendChild(makeRow(n)));
+
+    const colorMap = {B:'\uD83D\uDFE6', G:'\uD83D\uDFE9', R:'\uD83D\uDFE5', W:'\u2B1C'};
+    function decorateColors(str){
+      if(!str) return '';
+      if(!document.getElementById('decorateColors').checked) return str;
+      return str.replace(/(?<![A-Za-z0-9])([BGRW]+)(?![A-Za-z0-9])/g, (m)=>{
+        return m.split('').map(c=>colorMap[c]||c).join('');
+      });
+    }
+
+    function resultEmoji(res){
+      if(!document.getElementById('emojiResult').checked) return res||'';
+      if(res==='Win') return '✅';
+      if(res==='Lose') return '❌';
+      return '';
+    }
+
+    function fmtDate(dv){
+      if(!dv) return '';
+      try{
+        const [y,m,d] = dv.split('-');
+        return `${d}/${m}/${y.slice(-2)}`;
+      }catch(e){return dv}
+    }
+
+    function calcScore(){
+      let w=0,l=0; [1,2,3,4].forEach(n=>{
+        const r = document.getElementById(`r${n}res`).value;
+        if(r==='Win') w++; else if(r==='Lose') l++;
+      });
+      const total = w+l;
+      document.getElementById('score').value = total? `${w}-${l}` : '';
+    }
+
+    function updateCharCount(text){
+      document.getElementById('charCount').textContent = `Characters: ${text.length}`;
+    }
+
+    function build(){
+      calcScore();
+      const date = fmtDate(document.getElementById('date').value);
+      const format = document.getElementById('format').value.trim();
+      const shop = document.getElementById('shop').value.trim();
+      const score = document.getElementById('score').value.trim();
+      const ranking = document.getElementById('ranking').value.trim();
+      const deck = decorateColors(document.getElementById('deck').value.trim());
+      const tags = document.getElementById('tags').value.trim();
+
+      let lines = [];
+      lines.push('[Gundam TCG]');
+      lines.push(`${date} ${format} @${shop}`.trim());
+      if(score || ranking || deck){
+        lines.push(`${score || '—'} | ${ranking || '—'} | ${deck || '—'}`);
+      }
+      lines.push('');
+      <!-- lines.push('<Match result>'); -->
+
+      for(let i=1;i<=4;i++){
+        const colors = decorateColors(document.getElementById(`r${i}colors`).value.trim());
+        const arch = document.getElementById(`r${i}arch`).value.trim();
+        const going = document.getElementById(`r${i}going`).value;
+        const res = document.getElementById(`r${i}res`).value;
+        if(!colors && !arch && !going && !res) continue;
+        const resTxt = resultEmoji(res);
+        const parts = [`R${i}`, colors, arch, going, resTxt].filter(Boolean);
+        lines.push(parts.join(' '));
+      }
+
+      lines.push('\n' + tags);
+
+      const text = lines.join('\n');
+      document.getElementById('preview').textContent = text;
+      updateCharCount(text);
+    }
+
+    document.getElementById('genBtn').addEventListener('click', build);
+
+    document.querySelectorAll('input,select,textarea').forEach(el=>{
+      el.addEventListener('change', e=>{
+        if(el.id.startsWith('r') && el.id.endsWith('res')) calcScore();
+        build();
+      });
+      el.addEventListener('input', build);
+    });
+
+    document.getElementById('copyBtn').addEventListener('click', async()=>{
+      const txt = document.getElementById('preview').textContent;
+      try{await navigator.clipboard.writeText(txt); alert('Copied!');}
+      catch(e){
+        const ta = document.createElement('textarea');
+        ta.value = txt; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        alert('Copied!');
+      }
+    });
+
+    build();
+  </script>
+</body>
+</html>
